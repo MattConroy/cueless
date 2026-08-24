@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cueless.Application/Cueless.Application.csproj" />
+    <Project Path="src/Cueless.Domain/Cueless.Domain.csproj" />
+    <Project Path="src/Cueless.Infrastructure/Cueless.Infrastructure.csproj" />
+    <Project Path="src/Cueless.Web/Cueless.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cueless.Application.UnitTests/Cueless.Application.UnitTests.csproj" />
+    <Project Path="tests/Cueless.Domain.UnitTests/Cueless.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>
