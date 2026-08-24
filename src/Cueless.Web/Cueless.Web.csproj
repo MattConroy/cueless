@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <StaticWebAssetBasePath Condition="'$(StaticWebAssetBasePath)' == ''">/</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cueless.Infrastructure\Cueless.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
