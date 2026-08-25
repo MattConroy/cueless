@@ -7,6 +7,11 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
     private static readonly TimeSpan AudibleTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan StallAllowance = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan AdvertisementAllowance = TimeSpan.FromMinutes(2);
+
+    // The reported position stands still while a pre-roll plays, because it belongs to
+    // the track underneath rather than the advertisement in front of it.
+    private static readonly TimeSpan StillnessBeforeAdvertisement = TimeSpan.FromMilliseconds(600);
+    private static readonly TimeSpan Advance = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan PauseSettleDelay = TimeSpan.FromMilliseconds(250);
 
     // An advertisement reports its own current time, so playback is only the track
@@ -25,7 +30,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         _ = await WaitUntilAsync(
             "cueing",
-            _ => player.State is PlaybackState.Cued,
+            (_, _) => player.State is PlaybackState.Cued,
             CueTimeout,
             "The player never finished cueing the video.",
             progress,
@@ -46,7 +51,9 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         var startedAt = await WaitUntilAsync(
             "waiting for audio",
-            position => player.State == PlaybackState.Playing && Difference(position, offset) <= SeekTolerance,
+            (position, moving) => moving
+                && player.State == PlaybackState.Playing
+                && Difference(position, offset) <= SeekTolerance,
             AudibleTimeout,
             "The player never reached the requested offset.",
             progress,
@@ -93,7 +100,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
     private async Task<TimeSpan> WaitUntilAsync(
         string phase,
-        Func<TimeSpan, bool> reached,
+        Func<TimeSpan, bool, bool> reached,
         TimeSpan timeout,
         string failure,
         IProgress<SnippetProgress>? progress,
@@ -101,6 +108,9 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
     {
         var startedAtTimestamp = timeProvider.GetTimestamp();
         var deadline = startedAtTimestamp;
+        var furthest = TimeSpan.MinValue;
+        var movedAt = startedAtTimestamp;
+        var advanced = false;
 
         while (true)
         {
@@ -108,11 +118,23 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
             var position = player.Position;
             var elapsed = timeProvider.GetElapsedTime(startedAtTimestamp);
-            var arrived = reached(position);
 
-            // Playing something that is not the track we asked for means an
-            // advertisement is in front of it.
-            var advertising = !arrived && player.State == PlaybackState.Playing;
+            if (furthest == TimeSpan.MinValue)
+            {
+                furthest = position;
+            }
+            else if (position > furthest + Advance)
+            {
+                furthest = position;
+                movedAt = timeProvider.GetTimestamp();
+                advanced = true;
+            }
+
+            // A pre-roll leaves the reported position where it was, so the track is
+            // only really playing once that position has moved on its own.
+            var moving = advanced && timeProvider.GetElapsedTime(movedAt) < StillnessBeforeAdvertisement;
+            var arrived = reached(position, moving);
+            var advertising = !moving && player.State == PlaybackState.Playing;
 
             progress?.Report(new SnippetProgress(phase, player.State, position, elapsed, advertising));
 

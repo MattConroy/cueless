@@ -8,11 +8,14 @@ public class SnippetPlayerTests
     private static readonly TimeSpan Offset = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan OneSecond = TimeSpan.FromSeconds(1);
 
+    // The loop only accepts the track as playing once the position moves on its own.
+    private static readonly TimeSpan FirstAdvance = TimeSpan.FromSeconds(0.02);
+
     [Fact]
     public async Task PlaysBeforeMeasuring()
     {
         var player = new FakeMediaPlayer();
-        player.Reports(Offset, Offset, Offset + OneSecond);
+        player.Reports(Offset, Offset + FirstAdvance, Offset + FirstAdvance + OneSecond);
 
         await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(16));
 
@@ -23,8 +26,13 @@ public class SnippetPlayerTests
     public async Task ARebufferingPlayerStillDeliversAFullSecondOfAudio()
     {
         var player = new FakeMediaPlayer();
-        var stalled = Enumerable.Repeat(Offset, 20).ToArray();
-        player.Reports([Offset, .. stalled, Offset + TimeSpan.FromSeconds(0.5), Offset + OneSecond]);
+        var stalled = Enumerable.Repeat(Offset + FirstAdvance, 20).ToArray();
+        player.Reports([
+            Offset,
+            Offset + FirstAdvance,
+            .. stalled,
+            Offset + FirstAdvance + TimeSpan.FromSeconds(0.5),
+            Offset + FirstAdvance + OneSecond]);
 
         var time = new FakeTimeProvider();
         var outcome = await PlayAsync(player, time, TimeSpan.FromMilliseconds(100));
@@ -51,7 +59,7 @@ public class SnippetPlayerTests
     public async Task PausesOnceTheSnippetHasBeenHeard()
     {
         var player = new FakeMediaPlayer();
-        player.Reports(Offset, Offset, Offset + OneSecond);
+        player.Reports(Offset, Offset + FirstAdvance, Offset + FirstAdvance + OneSecond);
 
         await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(16));
 
@@ -62,7 +70,7 @@ public class SnippetPlayerTests
     public async Task PlaybackThatNeverAdvancesFails()
     {
         var player = new FakeMediaPlayer();
-        player.Reports(Offset);
+        player.Reports(Offset, Offset + FirstAdvance);
 
         var failure = await Assert.ThrowsAsync<SnippetPlaybackException>(
             () => PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromSeconds(1)));
@@ -100,9 +108,9 @@ public class SnippetPlayerTests
         var player = new FakeMediaPlayer();
         player.Reports(
             Offset,
-            Offset,
-            Offset + OneSecond,
-            Offset + OneSecond + TimeSpan.FromSeconds(0.12));
+            Offset + FirstAdvance,
+            Offset + FirstAdvance + OneSecond,
+            Offset + FirstAdvance + OneSecond + TimeSpan.FromSeconds(0.12));
 
         var outcome = await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(100));
 
@@ -114,7 +122,7 @@ public class SnippetPlayerTests
     public async Task APauseLeadStopsTheSnippetEarly()
     {
         var player = new FakeMediaPlayer();
-        player.Reports(Offset, Offset, Offset + TimeSpan.FromSeconds(0.8));
+        player.Reports(Offset, Offset + FirstAdvance, Offset + FirstAdvance + TimeSpan.FromSeconds(0.8));
 
         var outcome = await PlayAsync(
             player,
@@ -137,14 +145,34 @@ public class SnippetPlayerTests
         Assert.Equal(Offset, outcome.StartedAt);
     }
 
+    [Fact]
+    public async Task APositionThatStandsStillWhilePlayingIsReportedAsAnAdvertisement()
+    {
+        var player = new FakeMediaPlayer();
+        var frozenAtTheOffset = Enumerable.Repeat(Offset, 30).ToArray();
+        player.Reports([
+            .. frozenAtTheOffset,
+            Offset + TimeSpan.FromSeconds(0.5),
+            Offset + TimeSpan.FromSeconds(0.5) + OneSecond]);
+
+        var samples = new RecordingProgress();
+        await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(100), progress: samples);
+
+        Assert.True(
+            samples.Samples.Exists(sample => sample.Advertising),
+            string.Join("\n", samples.Samples.Select(sample =>
+                $"{sample.Phase} state={sample.State} pos={sample.Position.TotalSeconds:0.00} elapsed={sample.Elapsed.TotalSeconds:0.00} ad={sample.Advertising}")));
+    }
+
     private static async Task<SnippetOutcome> PlayAsync(
         FakeMediaPlayer player,
         FakeTimeProvider time,
         TimeSpan step,
-        TimeSpan lead = default)
+        TimeSpan lead = default,
+        IProgress<SnippetProgress>? progress = null)
     {
         var snippetPlayer = new SnippetPlayer(player, time);
-        var playing = snippetPlayer.PlayAsync(Offset, OneSecond, lead, null, CancellationToken.None);
+        var playing = snippetPlayer.PlayAsync(Offset, OneSecond, lead, progress, CancellationToken.None);
 
         for (var tick = 0; tick < 2000 && !playing.IsCompleted; tick++)
         {

@@ -44,6 +44,19 @@
     <p class="failure">@failure</p>
 }
 
+@if (trace.Count > 0)
+{
+    <details>
+        <summary>Trace (@trace.Count samples)</summary>
+        <ol class="trace">
+            @foreach (var sample in trace)
+            {
+                <li>@sample</li>
+            }
+        </ol>
+    </details>
+}
+
 @if (outcomes.Count > 0)
 {
     <table>
@@ -67,6 +80,7 @@
 
 @code {
     private readonly List<SnippetOutcome> outcomes = [];
+    private readonly List<string> trace = [];
 
     private ConcealedPlayer? playerComponent;
     private SnippetProgress? latest;
@@ -102,6 +116,12 @@
     {
         latest = progress;
 
+        var line = $"{progress.Elapsed.TotalSeconds:0.00} {progress.Phase} {progress.State} pos={progress.Position.TotalSeconds:0.000}{(progress.Advertising ? " AD" : string.Empty)}";
+        if (trace.Count == 0 || trace[^1][5..] != line[5..])
+        {
+            trace.Add(line);
+        }
+
         var now = DateTimeOffset.UtcNow;
         if (now - lastRender < TimeSpan.FromMilliseconds(150))
         {
@@ -122,6 +142,7 @@
         running = true;
         failure = null;
         prepared = false;
+        trace.Clear();
 
         try
         {
