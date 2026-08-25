@@ -1,0 +1,55 @@
+.settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--ink-muted);
+    font-size: 0.8125rem;
+}
+
+input {
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--surface-raised);
+    color: var(--ink);
+}
+
+button {
+    padding: 0.875rem 1rem;
+    border-radius: var(--radius);
+    background-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+
+button:disabled {
+    opacity: 0.5;
+}
+
+.failure {
+    color: var(--danger);
+}
+
+table {
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+}
+
+th {
+    text-align: left;
+    color: var(--ink-muted);
+    font-weight: 500;
+}
+
+th,
+td {
+    padding: 0.375rem 0.5rem 0.375rem 0;
+    border-bottom: 1px solid var(--border);
+}

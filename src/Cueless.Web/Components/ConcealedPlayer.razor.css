@@ -1,0 +1,22 @@
+.stage {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--surface-raised);
+}
+
+/* The frame must keep a non-zero size: hiding it stops playback. */
+.stage ::deep iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.cover {
+    position: absolute;
+    inset: 0;
+    background-color: var(--surface-raised);
+}
