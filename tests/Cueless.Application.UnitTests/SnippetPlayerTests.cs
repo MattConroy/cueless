@@ -125,6 +125,18 @@ public class SnippetPlayerTests
         Assert.True(outcome.Heard < OneSecond, $"stopped at {outcome.Heard.TotalSeconds:0.00}s");
     }
 
+    [Fact]
+    public async Task ALongAdvertisementDoesNotTimeTheWaitOut()
+    {
+        var player = new FakeMediaPlayer();
+        var longAdvertisement = Enumerable.Repeat(TimeSpan.FromSeconds(3), 60).ToArray();
+        player.Reports([.. longAdvertisement, Offset, Offset, Offset + OneSecond]);
+
+        var outcome = await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromSeconds(1));
+
+        Assert.Equal(Offset, outcome.StartedAt);
+    }
+
     private static async Task<SnippetOutcome> PlayAsync(
         FakeMediaPlayer player,
         FakeTimeProvider time,

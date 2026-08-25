@@ -6,6 +6,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
     private static readonly TimeSpan CueTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan AudibleTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan StallAllowance = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan AdvertisementAllowance = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan PauseSettleDelay = TimeSpan.FromMilliseconds(250);
 
     // An advertisement reports its own current time, so playback is only the track
@@ -99,6 +100,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
         CancellationToken cancellationToken)
     {
         var startedAtTimestamp = timeProvider.GetTimestamp();
+        var deadline = startedAtTimestamp;
 
         while (true)
         {
@@ -119,7 +121,21 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
                 return position;
             }
 
-            if (elapsed > timeout)
+            // An advertisement can run longer than the wait allows, and the viewer may
+            // need time to reach the skip control, so it does not count against it.
+            // The overall deadline still applies, so a player that is playing something
+            // it never leaves cannot wait for ever.
+            if (advertising)
+            {
+                startedAtTimestamp = timeProvider.GetTimestamp();
+            }
+            else if (elapsed > timeout)
+            {
+                player.Pause();
+                throw new SnippetPlaybackException(failure);
+            }
+
+            if (timeProvider.GetElapsedTime(deadline) > AdvertisementAllowance)
             {
                 player.Pause();
                 throw new SnippetPlaybackException(failure);
