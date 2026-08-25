@@ -95,6 +95,22 @@ public class SnippetPlayerTests
         Assert.Contains("never reached", failure.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AudioPlayedAfterThePauseIsReportedAsOvershoot()
+    {
+        var player = new FakeMediaPlayer();
+        player.Reports(
+            Offset,
+            Offset,
+            Offset + OneSecond,
+            Offset + OneSecond + TimeSpan.FromSeconds(0.12));
+
+        var outcome = await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(TimeSpan.FromSeconds(0.12), outcome.Overshoot);
+        Assert.True(outcome.Delivered > outcome.Heard);
+    }
+
     private static async Task<SnippetOutcome> PlayAsync(
         FakeMediaPlayer player,
         FakeTimeProvider time,

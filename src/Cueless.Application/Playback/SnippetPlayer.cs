@@ -5,6 +5,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(16);
     private static readonly TimeSpan AudibleTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan StallAllowance = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan PauseSettleDelay = TimeSpan.FromMilliseconds(250);
 
     // An advertisement reports its own current time, so playback is only the track
     // once the reported position is near where we asked to be.
@@ -50,8 +51,11 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
         }
 
         player.Pause();
+        await Task.Delay(PauseSettleDelay, timeProvider, cancellationToken);
 
-        return new SnippetOutcome(length, heard, elapsed, startedAt);
+        var delivered = player.Position - startedAt;
+
+        return new SnippetOutcome(length, heard, delivered, elapsed, startedAt);
     }
 
     private async Task<TimeSpan> WaitUntilAudibleAsync(TimeSpan offset, CancellationToken cancellationToken)

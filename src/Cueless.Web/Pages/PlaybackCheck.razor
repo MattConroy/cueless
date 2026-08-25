@@ -37,7 +37,7 @@
 {
     <table>
         <thead>
-            <tr><th>Asked</th><th>Heard</th><th>Wall</th><th>Short by</th><th>Stalled</th></tr>
+            <tr><th>Asked</th><th>Heard</th><th>Over</th><th>Wall</th><th>Stalled</th></tr>
         </thead>
         <tbody>
             @foreach (var outcome in outcomes)
@@ -45,8 +45,8 @@
                 <tr>
                     <td>@Seconds(outcome.Requested)</td>
                     <td>@Seconds(outcome.Heard)</td>
+                    <td>@Seconds(outcome.Overshoot)</td>
                     <td>@Seconds(outcome.Elapsed)</td>
-                    <td>@Seconds(outcome.Shortfall)</td>
                     <td>@Seconds(outcome.Stalled)</td>
                 </tr>
             }
