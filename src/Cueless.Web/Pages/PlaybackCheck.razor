@@ -6,7 +6,7 @@
 
 <h1>Playback check</h1>
 
-<p>Measures how much audio a snippet actually delivers. Tap play on a cold load, and again after the video is warm.</p>
+<p>Cue once, then play repeatedly. Replaying seeks rather than reloading, so a pre-roll should only appear on the first play after a cue.</p>
 
 <ConcealedPlayer @ref="playerComponent" Ready="OnPlayerReady" />
 
@@ -22,6 +22,10 @@
     <label>
         Snippet (seconds)
         <input type="number" @bind="snippetSeconds" min="1" max="10" step="1" />
+    </label>
+    <label>
+        Pause lead (milliseconds)
+        <input type="number" @bind="pauseLeadMilliseconds" min="0" max="1000" step="10" />
     </label>
     <button type="button" disabled="@(!ready || running)" @onclick="PrepareAsync">
         @(prepared ? "Re-cue" : "Cue at offset")
@@ -71,6 +75,7 @@
     private string videoIdentifier = "dQw4w9WgXcQ";
     private int offsetSeconds = 45;
     private int snippetSeconds = 1;
+    private int pauseLeadMilliseconds;
     private bool ready;
     private bool running;
     private string? failure;
@@ -147,11 +152,11 @@
             var outcome = await Player().PlayAsync(
                 TimeSpan.FromSeconds(offsetSeconds),
                 TimeSpan.FromSeconds(snippetSeconds),
+                TimeSpan.FromMilliseconds(pauseLeadMilliseconds),
                 new Progress<SnippetProgress>(Track),
                 CancellationToken.None);
 
             outcomes.Insert(0, outcome);
-            prepared = false;
         }
         catch (SnippetPlaybackException exception)
         {

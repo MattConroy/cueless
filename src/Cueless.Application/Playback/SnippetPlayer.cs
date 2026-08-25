@@ -31,12 +31,16 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
             cancellationToken);
     }
 
+    // Seeking a video that is already loaded avoids a reload, and so avoids the
+    // pre-roll that a reload would bring with it.
     public async Task<SnippetOutcome> PlayAsync(
         TimeSpan offset,
         TimeSpan length,
+        TimeSpan pauseLead,
         IProgress<SnippetProgress>? progress,
         CancellationToken cancellationToken)
     {
+        player.Seek(offset);
         player.Play();
 
         var startedAt = await WaitUntilAsync(
@@ -49,6 +53,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         var startedAtTimestamp = timeProvider.GetTimestamp();
         var backstop = length + StallAllowance;
+        var stopAt = length - pauseLead;
         TimeSpan heard;
         TimeSpan elapsed;
 
@@ -60,7 +65,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
             progress?.Report(new SnippetProgress("measuring", player.State, position, elapsed));
 
-            if (heard >= length)
+            if (heard >= stopAt)
             {
                 break;
             }

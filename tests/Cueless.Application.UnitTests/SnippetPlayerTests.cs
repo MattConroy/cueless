@@ -110,13 +110,29 @@ public class SnippetPlayerTests
         Assert.True(outcome.Delivered > outcome.Heard);
     }
 
+    [Fact]
+    public async Task APauseLeadStopsTheSnippetEarly()
+    {
+        var player = new FakeMediaPlayer();
+        player.Reports(Offset, Offset, Offset + TimeSpan.FromSeconds(0.8));
+
+        var outcome = await PlayAsync(
+            player,
+            new FakeTimeProvider(),
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(250));
+
+        Assert.True(outcome.Heard < OneSecond, $"stopped at {outcome.Heard.TotalSeconds:0.00}s");
+    }
+
     private static async Task<SnippetOutcome> PlayAsync(
         FakeMediaPlayer player,
         FakeTimeProvider time,
-        TimeSpan step)
+        TimeSpan step,
+        TimeSpan lead = default)
     {
         var snippetPlayer = new SnippetPlayer(player, time);
-        var playing = snippetPlayer.PlayAsync(Offset, OneSecond, null, CancellationToken.None);
+        var playing = snippetPlayer.PlayAsync(Offset, OneSecond, lead, null, CancellationToken.None);
 
         for (var tick = 0; tick < 2000 && !playing.IsCompleted; tick++)
         {
