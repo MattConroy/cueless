@@ -63,7 +63,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
             heard = position - startedAt;
             elapsed = timeProvider.GetElapsedTime(startedAtTimestamp);
 
-            progress?.Report(new SnippetProgress("measuring", player.State, position, elapsed));
+            progress?.Report(new SnippetProgress("measuring", player.State, position, elapsed, false));
 
             if (heard >= stopAt)
             {
@@ -106,9 +106,15 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
             var position = player.Position;
             var elapsed = timeProvider.GetElapsedTime(startedAtTimestamp);
-            progress?.Report(new SnippetProgress(phase, player.State, position, elapsed));
+            var arrived = reached(position);
 
-            if (reached(position))
+            // Playing something that is not the track we asked for means an
+            // advertisement is in front of it.
+            var advertising = !arrived && player.State == PlaybackState.Playing;
+
+            progress?.Report(new SnippetProgress(phase, player.State, position, elapsed, advertising));
+
+            if (arrived)
             {
                 return position;
             }

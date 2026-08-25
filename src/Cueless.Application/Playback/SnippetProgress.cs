@@ -1,3 +1,8 @@
 namespace Cueless.Application.Playback;
 
-public sealed record SnippetProgress(string Phase, PlaybackState State, TimeSpan Position, TimeSpan Elapsed);
+public sealed record SnippetProgress(
+    string Phase,
+    PlaybackState State,
+    TimeSpan Position,
+    TimeSpan Elapsed,
+    bool Advertising);

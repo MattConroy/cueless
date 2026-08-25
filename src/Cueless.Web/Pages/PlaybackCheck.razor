@@ -8,7 +8,7 @@
 
 <p>Cue once, then play repeatedly. Replaying seeks rather than reloading, so a pre-roll should only appear on the first play after a cue.</p>
 
-<ConcealedPlayer @ref="playerComponent" Ready="OnPlayerReady" />
+<ConcealedPlayer @ref="playerComponent" Ready="OnPlayerReady" Concealed="@(!advertising)" />
 
 <form class="settings" @onsubmit="RunAsync" @onsubmit:preventDefault>
     <label>
@@ -72,17 +72,25 @@
     private SnippetProgress? latest;
     private DateTimeOffset lastRender = DateTimeOffset.MinValue;
     private bool prepared;
+
+    private bool advertising => latest?.Advertising ?? false;
     private string videoIdentifier = "dQw4w9WgXcQ";
     private int offsetSeconds = 45;
     private int snippetSeconds = 1;
     private int pauseLeadMilliseconds;
+
+    [Inject]
+    private PlaybackSettings Settings { get; set; } = default!;
     private bool ready;
     private bool running;
     private string? failure;
 
     private string status => latest is null
         ? (ready ? "Player ready." : "Loading player…")
-        : $"{latest.Phase} · {latest.State} · position {Seconds(latest.Position)} · {Seconds(latest.Elapsed)}";
+        : $"{latest.Phase}{(latest.Advertising ? " · advertisement" : string.Empty)} · {latest.State} · position {Seconds(latest.Position)} · {Seconds(latest.Elapsed)}";
+
+    protected override void OnInitialized() =>
+        pauseLeadMilliseconds = (int)Settings.PauseLead.TotalMilliseconds;
 
     private void OnPlayerReady()
     {

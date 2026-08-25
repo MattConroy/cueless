@@ -1,4 +1,7 @@
 <div class="stage">
     <div id="@frameElementIdentifier"></div>
-    <div class="cover" aria-hidden="true"></div>
+    @if (Concealed)
+    {
+        <div class="cover" aria-hidden="true"></div>
+    }
 </div>

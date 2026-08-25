@@ -17,6 +17,11 @@ public sealed partial class ConcealedPlayer : ComponentBase, IMediaPlayer, IAsyn
     [Parameter]
     public EventCallback Ready { get; set; }
 
+    // An advertisement has to stay visible: it is the player's own content, and the
+    // viewer needs to reach the skip control.
+    [Parameter]
+    public bool Concealed { get; set; } = true;
+
     public PlaybackState State { get; private set; } = PlaybackState.Unstarted;
 
     public TimeSpan Position =>
