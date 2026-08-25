@@ -22,7 +22,13 @@ public sealed partial class ConcealedPlayer : ComponentBase, IMediaPlayer, IAsyn
     public TimeSpan Position =>
         shim is null ? TimeSpan.Zero : TimeSpan.FromSeconds(shim.Invoke<double>("getCurrentTime"));
 
-    public void Cue(string videoIdentifier) => shim?.InvokeVoid("cue", videoIdentifier);
+    public void Cue(string videoIdentifier, TimeSpan startAt)
+    {
+        // The state left over from the previous snippet would otherwise satisfy a
+        // wait for this cue before the player has buffered anything.
+        State = PlaybackState.Unstarted;
+        shim?.InvokeVoid("cue", videoIdentifier, startAt.TotalSeconds);
+    }
 
     public void Seek(TimeSpan position) => shim?.InvokeVoid("seek", position.TotalSeconds);
 

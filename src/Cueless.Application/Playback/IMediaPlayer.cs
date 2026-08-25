@@ -6,7 +6,7 @@ public interface IMediaPlayer
 
     TimeSpan Position { get; }
 
-    void Cue(string videoIdentifier);
+    void Cue(string videoIdentifier, TimeSpan startAt);
 
     void Seek(TimeSpan position);
 

@@ -23,10 +23,17 @@
         Snippet (seconds)
         <input type="number" @bind="snippetSeconds" min="1" max="10" step="1" />
     </label>
-    <button type="submit" disabled="@(!ready || running)">
+    <button type="button" disabled="@(!ready || running)" @onclick="PrepareAsync">
+        @(prepared ? "Re-cue" : "Cue at offset")
+    </button>
+    <button type="submit" disabled="@(!prepared || running)">
         @(running ? "Playing…" : "Play snippet")
     </button>
 </form>
+
+<p class="status">
+    @status
+</p>
 
 @if (failure is not null)
 {
@@ -58,6 +65,9 @@
     private readonly List<SnippetOutcome> outcomes = [];
 
     private ConcealedPlayer? playerComponent;
+    private SnippetProgress? latest;
+    private DateTimeOffset lastRender = DateTimeOffset.MinValue;
+    private bool prepared;
     private string videoIdentifier = "dQw4w9WgXcQ";
     private int offsetSeconds = 45;
     private int snippetSeconds = 1;
@@ -65,11 +75,62 @@
     private bool running;
     private string? failure;
 
+    private string status => latest is null
+        ? (ready ? "Player ready." : "Loading player…")
+        : $"{latest.Phase} · {latest.State} · position {Seconds(latest.Position)} · {Seconds(latest.Elapsed)}";
+
     private void OnPlayerReady()
     {
         ready = true;
         StateHasChanged();
     }
+
+    private void Track(SnippetProgress progress)
+    {
+        latest = progress;
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - lastRender < TimeSpan.FromMilliseconds(150))
+        {
+            return;
+        }
+
+        lastRender = now;
+        StateHasChanged();
+    }
+
+    private async Task PrepareAsync()
+    {
+        if (playerComponent is null || running)
+        {
+            return;
+        }
+
+        running = true;
+        failure = null;
+        prepared = false;
+
+        try
+        {
+            await Player().PrepareAsync(
+                videoIdentifier,
+                TimeSpan.FromSeconds(offsetSeconds),
+                new Progress<SnippetProgress>(Track),
+                CancellationToken.None);
+
+            prepared = true;
+        }
+        catch (SnippetPlaybackException exception)
+        {
+            failure = exception.Message;
+        }
+        finally
+        {
+            running = false;
+        }
+    }
+
+    private SnippetPlayer Player() => new(playerComponent!, TimeProvider.System);
 
     private async Task RunAsync()
     {
@@ -83,15 +144,14 @@
 
         try
         {
-            var snippetPlayer = new SnippetPlayer(playerComponent, TimeProvider.System);
-
-            var outcome = await snippetPlayer.PlayAsync(
-                videoIdentifier,
+            var outcome = await Player().PlayAsync(
                 TimeSpan.FromSeconds(offsetSeconds),
                 TimeSpan.FromSeconds(snippetSeconds),
+                new Progress<SnippetProgress>(Track),
                 CancellationToken.None);
 
             outcomes.Insert(0, outcome);
+            prepared = false;
         }
         catch (SnippetPlaybackException exception)
         {

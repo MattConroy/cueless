@@ -38,7 +38,14 @@ internal sealed class FakeMediaPlayer : IMediaPlayer
         }
     }
 
-    public void Cue(string videoIdentifier) => CuedVideoIdentifier = videoIdentifier;
+    public TimeSpan? CuedAt { get; private set; }
+
+    public void Cue(string videoIdentifier, TimeSpan startAt)
+    {
+        CuedVideoIdentifier = videoIdentifier;
+        CuedAt = startAt;
+        latest = startAt;
+    }
 
     public void Seek(TimeSpan position) => latest = position;
 

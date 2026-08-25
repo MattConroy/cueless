@@ -9,14 +9,13 @@ public class SnippetPlayerTests
     private static readonly TimeSpan OneSecond = TimeSpan.FromSeconds(1);
 
     [Fact]
-    public async Task CuesSeeksAndPlaysBeforeMeasuring()
+    public async Task PlaysBeforeMeasuring()
     {
         var player = new FakeMediaPlayer();
         player.Reports(Offset, Offset, Offset + OneSecond);
 
         await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(16));
 
-        Assert.Equal("track", player.CuedVideoIdentifier);
         Assert.True(player.Started);
     }
 
@@ -117,7 +116,7 @@ public class SnippetPlayerTests
         TimeSpan step)
     {
         var snippetPlayer = new SnippetPlayer(player, time);
-        var playing = snippetPlayer.PlayAsync("track", Offset, OneSecond, CancellationToken.None);
+        var playing = snippetPlayer.PlayAsync(Offset, OneSecond, null, CancellationToken.None);
 
         for (var tick = 0; tick < 2000 && !playing.IsCompleted; tick++)
         {

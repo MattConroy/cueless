@@ -3,7 +3,8 @@ namespace Cueless.Application.Playback;
 public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider)
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(16);
-    private static readonly TimeSpan AudibleTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CueTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan AudibleTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan StallAllowance = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PauseSettleDelay = TimeSpan.FromMilliseconds(250);
 
@@ -11,17 +12,40 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
     // once the reported position is near where we asked to be.
     private static readonly TimeSpan SeekTolerance = TimeSpan.FromSeconds(2);
 
-    public async Task<SnippetOutcome> PlayAsync(
+    // Cueing at the offset buffers there without playing, so the tap that follows
+    // starts audio immediately and stays inside the browser's gesture allowance.
+    public async Task PrepareAsync(
         string videoIdentifier,
         TimeSpan offset,
-        TimeSpan length,
+        IProgress<SnippetProgress>? progress,
         CancellationToken cancellationToken)
     {
-        player.Cue(videoIdentifier);
-        player.Seek(offset);
+        player.Cue(videoIdentifier, offset);
+
+        _ = await WaitUntilAsync(
+            "cueing",
+            _ => player.State is PlaybackState.Cued,
+            CueTimeout,
+            "The player never finished cueing the video.",
+            progress,
+            cancellationToken);
+    }
+
+    public async Task<SnippetOutcome> PlayAsync(
+        TimeSpan offset,
+        TimeSpan length,
+        IProgress<SnippetProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         player.Play();
 
-        var startedAt = await WaitUntilAudibleAsync(offset, cancellationToken);
+        var startedAt = await WaitUntilAsync(
+            "waiting for audio",
+            position => player.State == PlaybackState.Playing && Difference(position, offset) <= SeekTolerance,
+            AudibleTimeout,
+            "The player never reached the requested offset.",
+            progress,
+            cancellationToken);
 
         var startedAtTimestamp = timeProvider.GetTimestamp();
         var backstop = length + StallAllowance;
@@ -30,8 +54,11 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         while (true)
         {
-            heard = player.Position - startedAt;
+            var position = player.Position;
+            heard = position - startedAt;
             elapsed = timeProvider.GetElapsedTime(startedAtTimestamp);
+
+            progress?.Report(new SnippetProgress("measuring", player.State, position, elapsed));
 
             if (heard >= length)
             {
@@ -58,7 +85,13 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
         return new SnippetOutcome(length, heard, delivered, elapsed, startedAt);
     }
 
-    private async Task<TimeSpan> WaitUntilAudibleAsync(TimeSpan offset, CancellationToken cancellationToken)
+    private async Task<TimeSpan> WaitUntilAsync(
+        string phase,
+        Func<TimeSpan, bool> reached,
+        TimeSpan timeout,
+        string failure,
+        IProgress<SnippetProgress>? progress,
+        CancellationToken cancellationToken)
     {
         var startedAtTimestamp = timeProvider.GetTimestamp();
 
@@ -67,16 +100,18 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
             EnsureStillPlayable();
 
             var position = player.Position;
+            var elapsed = timeProvider.GetElapsedTime(startedAtTimestamp);
+            progress?.Report(new SnippetProgress(phase, player.State, position, elapsed));
 
-            if (player.State == PlaybackState.Playing && Difference(position, offset) <= SeekTolerance)
+            if (reached(position))
             {
                 return position;
             }
 
-            if (timeProvider.GetElapsedTime(startedAtTimestamp) > AudibleTimeout)
+            if (elapsed > timeout)
             {
                 player.Pause();
-                throw new SnippetPlaybackException("The player never reached the requested offset.");
+                throw new SnippetPlaybackException(failure);
             }
 
             await Task.Delay(PollInterval, timeProvider, cancellationToken);

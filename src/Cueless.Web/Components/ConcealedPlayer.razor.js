@@ -30,8 +30,8 @@ export function loadPlayer(elementIdentifier, reference) {
     });
 }
 
-export function cue(videoIdentifier) {
-    player.cueVideoById(videoIdentifier);
+export function cue(videoIdentifier, startSeconds) {
+    player.cueVideoById({ videoId: videoIdentifier, startSeconds: startSeconds });
 }
 
 export function seek(seconds) {
