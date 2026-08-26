@@ -30,7 +30,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         _ = await WaitUntilAsync(
             "cueing",
-            (_, _) => player.State is PlaybackState.Cued,
+            (_, _) => player.State is PlaybackState.Cued ? WaitVerdict.Arrived : WaitVerdict.Waiting,
             CueTimeout,
             "The player never finished cueing the video.",
             progress,
@@ -51,9 +51,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
         var startedAt = await WaitUntilAsync(
             "waiting for audio",
-            (position, moving) => moving
-                && player.State == PlaybackState.Playing
-                && Difference(position, offset) <= SeekTolerance,
+            (position, moving) => Assess(position, moving, offset),
             AudibleTimeout,
             "The player never reached the requested offset.",
             progress,
@@ -100,7 +98,7 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
     private async Task<TimeSpan> WaitUntilAsync(
         string phase,
-        Func<TimeSpan, bool, bool> reached,
+        Func<TimeSpan, bool, WaitVerdict> assess,
         TimeSpan timeout,
         string failure,
         IProgress<SnippetProgress>? progress,
@@ -133,8 +131,9 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
             // A pre-roll leaves the reported position where it was, so the track is
             // only really playing once that position has moved on its own.
             var moving = advanced && timeProvider.GetElapsedTime(movedAt) < StillnessBeforeAdvertisement;
-            var arrived = reached(position, moving);
-            var advertising = !moving && player.State == PlaybackState.Playing;
+            var verdict = assess(position, moving);
+            var arrived = verdict is WaitVerdict.Arrived;
+            var advertising = verdict is WaitVerdict.Advertising;
 
             progress?.Report(new SnippetProgress(phase, player.State, position, elapsed, advertising));
 
@@ -167,6 +166,23 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
         }
     }
 
+    // A pre-roll is reported inconsistently: some players give the advertisement's own
+    // position while the state stays unstarted, others leave the position on the track
+    // and stand still. Neither is the track, and the state alone cannot tell them apart.
+    private WaitVerdict Assess(TimeSpan position, bool moving, TimeSpan offset)
+    {
+        var atTheOffset = Difference(position, offset) <= SeekTolerance;
+
+        if (atTheOffset && moving)
+        {
+            return WaitVerdict.Arrived;
+        }
+
+        return !atTheOffset || player.State == PlaybackState.Playing
+            ? WaitVerdict.Advertising
+            : WaitVerdict.Waiting;
+    }
+
     private void EnsureStillPlayable()
     {
         if (player.State is PlaybackState.Unavailable)
@@ -177,4 +193,11 @@ public sealed class SnippetPlayer(IMediaPlayer player, TimeProvider timeProvider
 
     private static TimeSpan Difference(TimeSpan left, TimeSpan right) =>
         left > right ? left - right : right - left;
+
+    private enum WaitVerdict
+    {
+        Waiting,
+        Arrived,
+        Advertising,
+    }
 }

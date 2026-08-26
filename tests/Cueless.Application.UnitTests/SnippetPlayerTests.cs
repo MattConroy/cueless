@@ -164,6 +164,19 @@ public class SnippetPlayerTests
                 $"{sample.Phase} state={sample.State} pos={sample.Position.TotalSeconds:0.00} elapsed={sample.Elapsed.TotalSeconds:0.00} ad={sample.Advertising}")));
     }
 
+    [Fact]
+    public async Task AnAdvertisementReportingItsOwnPositionWhileUnstartedIsStillAnAdvertisement()
+    {
+        var player = new FakeMediaPlayer { State = PlaybackState.Unstarted };
+        var advertisement = Enumerable.Range(1, 20).Select(second => TimeSpan.FromSeconds(second * 0.2)).ToArray();
+        player.Reports([.. advertisement, Offset, Offset + FirstAdvance, Offset + FirstAdvance + OneSecond]);
+
+        var samples = new RecordingProgress();
+        await PlayAsync(player, new FakeTimeProvider(), TimeSpan.FromMilliseconds(100), progress: samples);
+
+        Assert.Contains(samples.Samples, sample => sample.Advertising);
+    }
+
     private static async Task<SnippetOutcome> PlayAsync(
         FakeMediaPlayer player,
         FakeTimeProvider time,
