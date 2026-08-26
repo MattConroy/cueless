@@ -74,3 +74,13 @@ summary {
     font-size: 0.8125rem;
     cursor: pointer;
 }
+
+.copy {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    font-size: 0.8125rem;
+}

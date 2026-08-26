@@ -48,6 +48,7 @@
 {
     <details>
         <summary>Trace (@trace.Count samples)</summary>
+        <button type="button" class="copy" @onclick="CopyTraceAsync">@copyLabel</button>
         <ol class="trace">
             @foreach (var sample in trace)
             {
@@ -86,6 +87,9 @@
     private SnippetProgress? latest;
     private DateTimeOffset lastRender = DateTimeOffset.MinValue;
     private bool prepared;
+    private string copyLabel = "Copy trace";
+    private string lastShape = string.Empty;
+    private DateTimeOffset lastTraced = DateTimeOffset.MinValue;
 
     private bool advertising => latest?.Advertising ?? false;
     private string videoIdentifier = "dQw4w9WgXcQ";
@@ -95,6 +99,12 @@
 
     [Inject]
     private PlaybackSettings Settings { get; set; } = default!;
+
+    [Inject]
+    private IApplicationVersion ApplicationVersion { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JavaScript { get; set; } = default!;
     private bool ready;
     private bool running;
     private string? failure;
@@ -116,13 +126,22 @@
     {
         latest = progress;
 
-        var line = $"{progress.Elapsed.TotalSeconds:0.00} {progress.Phase} {progress.State} pos={progress.Position.TotalSeconds:0.000}{(progress.Advertising ? " AD" : string.Empty)}";
-        if (trace.Count == 0 || trace[^1][5..] != line[5..])
+        // Every sample would be hundreds of lines to read, so the trace keeps the
+        // moments something changed and a slow heartbeat in between.
+        var shape = $"{progress.Phase}|{progress.State}|{progress.Advertising}";
+        var now = DateTimeOffset.UtcNow;
+
+        if (shape != lastShape || now - lastTraced >= TimeSpan.FromMilliseconds(500))
         {
-            trace.Add(line);
+            if (trace.Count < 200)
+            {
+                trace.Add($"{progress.Elapsed.TotalSeconds:0.00} {progress.Phase} {progress.State} pos={progress.Position.TotalSeconds:0.000}{(progress.Advertising ? " AD" : string.Empty)}");
+            }
+
+            lastShape = shape;
+            lastTraced = now;
         }
 
-        var now = DateTimeOffset.UtcNow;
         if (now - lastRender < TimeSpan.FromMilliseconds(150))
         {
             return;
@@ -143,6 +162,9 @@
         failure = null;
         prepared = false;
         trace.Clear();
+        copyLabel = "Copy trace";
+        lastShape = string.Empty;
+        lastTraced = DateTimeOffset.MinValue;
 
         try
         {
@@ -165,6 +187,30 @@
     }
 
     private SnippetPlayer Player() => new(playerComponent!, TimeProvider.System);
+
+    private async Task CopyTraceAsync()
+    {
+        var report = string.Join(
+            Environment.NewLine,
+            [
+                $"cueless {ApplicationVersion.Current}",
+                $"video={videoIdentifier} offset={offsetSeconds}s snippet={snippetSeconds}s lead={pauseLeadMilliseconds}ms",
+                outcomes.Count > 0
+                    ? $"asked={Seconds(outcomes[0].Requested)} heard={Seconds(outcomes[0].Heard)} over={Seconds(outcomes[0].Overshoot)} wall={Seconds(outcomes[0].Elapsed)}"
+                    : $"no outcome; failure={failure ?? "none"}",
+                .. trace,
+            ]);
+
+        try
+        {
+            await JavaScript.InvokeVoidAsync("navigator.clipboard.writeText", report);
+            copyLabel = "Copied";
+        }
+        catch (JSException)
+        {
+            copyLabel = "Copy failed — select the trace by hand";
+        }
+    }
 
     private async Task RunAsync()
     {
