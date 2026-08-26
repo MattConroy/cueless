@@ -6,6 +6,8 @@ export function loadPlayer(elementIdentifier, reference) {
         // once, so a player can be built either now or when that callback arrives.
         const create = () => {
             player = new YT.Player(elementIdentifier, {
+                width: '100%',
+                height: '100%',
                 playerVars: {
                     controls: 0,
                     disablekb: 1,
